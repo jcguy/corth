@@ -1,0 +1,80 @@
+post-fix, forth/porth style
+functional, functions as values -- how does this work with postfix?
+    explicit call:
+        1 3 add call dump ==> 4
+    suffix call? don't really like bc limits names
+        1 3 add! dump ==> 4
+    marker for function-as-value? similar interference with names, but I like it more
+        1 3 add dump ==> 4
+        3 2 1 cons cons &add map dump ==> 6
+    some other way to distinguish between name and invoke?
+    
+blocks delimited with block name and "end"
+compiled? interpreted + compiled like porth?
+low-level: similar to C
+
+symbols for built-in functions, plus named variants for clarity
+
+3 4 + .
+> 7
+
+3 4 add dump
+> 7
+
+conditionals:
+
+4 3 > if [block] else [block] end
+    or
+if 4 3 > then [block] else [block] end
+
+looping -- how/where to store condition?
+
+top of stack
+-- would need dup at end of each iteration, to be able to use conditional variable in body,
+-- since condition function would pop from stack
+-- would work better with let blocks
+
+4 < while [block] end
+    or
+while 4 < do [block] end
+
+for loops? maybe only for iteration
+
+function declaration:
+
+"functional" style, no/implicit arguments
+def collatz as
+    dup
+    if 2 % 0 = then 2 / else 3 * 1 +
+end
+
+"declarative" style, explicit arguments
+def factorial as
+    let n in
+        ...
+    end
+end
+
+let blocks to pop off stack and store in name. Immutable.
+
+basic types:
+    function
+    number or int16/int32/double/etc. (hierarchy like C?)
+    how low level? start with C types and then stdlib on top with strings etc?
+    character -- equivalent to int8?
+    string -- array of char?
+    pointers?
+    array
+
+    I think C types are a good place to start and then can implement more either self-hosted or in compiler
+
+objects/structs?
+    perhaps add later, since I don't know how I want to do this
+
+types/type checking?
+
+I/O can be handled with syscalls at core
+
+compilation -- x86 directly? compile to C? LLVM IR could be fun? 
+
+C bindings would be nice
