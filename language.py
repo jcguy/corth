@@ -65,6 +65,8 @@ class Token:
         self.filename = filename
         self.row = row + 1
         self.col = col + 1
+        self.value = None
+        self.position = None
 
         assert TokenType.COUNT_OPS == 15, "Remember to update Token.ops"
         if word in Token.ops:
@@ -135,8 +137,10 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
     for i, token in enumerate(tokenize_file(filename)):
         match token.type:
             case TokenType.BLOCK_WHILE:
+                token.position = i
                 blocks.append(Block(i, token))
             case TokenType.BLOCK_IF:
+                token.position = i
                 blocks.append(Block(i, token))
             case TokenType.BLOCK_ELSE:
                 # Close if block
@@ -147,6 +151,7 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
                 open.token.value = i
 
                 # open else block
+                token.position = i
                 blocks.append(Block(i, token))
             case TokenType.BLOCK_END:
                 open = blocks.pop()
@@ -157,6 +162,7 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
                     ), f"Someone set {open.token} and it wasn't {token}"
 
                 open.token.value = i
+                token.position = i
 
                 if open.token.type is not TokenType.BLOCK_IF:
                     token.value = open.location

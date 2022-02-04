@@ -104,7 +104,7 @@ def run_compilation_tests(args):
             f"nasm -felf64 {join(TEST_DIR, filename.rsplit('.', 1)[0] + '.asm')}".split(),
         )
         subprocess.check_call(
-            f"ld {join(TEST_DIR, filename.rsplit('.', 1)[0] + '.o')} -o {join(TEST_DIR, filename.rsplit('.', 1)[0])}".split(),
+            f"ld {join(TEST_DIR, filename.rsplit('.', 1)[0] + '.o')} -o {join(TEST_DIR, filename.rsplit('.', 1)[0])} -g -F dwarf".split(),
         )
 
         process: CompletedProcess = subprocess.run(

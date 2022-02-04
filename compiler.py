@@ -116,46 +116,61 @@ class Compiler:
         )
 
     def gt(self):
-        return
-        a = self.pop()
-        b = self.pop()
-        if b > a:
-            self.push(1)
-        else:
-            self.push(0)
+        return (
+            "    ;; --- gt --- ;;\n"
+            "    pop rax\n"
+            "    pop rbx\n"
+            "    cmp rbx, rax\n"
+            "    mov rax, 0\n"
+            "    mov rbx, 1\n"
+            "    cmovg rax, rbx\n"
+            "    push rax\n"
+        )
 
     def lt(self):
-        return
-        a = self.pop()
-        b = self.pop()
-        if b < a:
-            self.push(1)
-        else:
-            self.push(0)
+        return (
+            "    ;; --- lt --- ;;\n"
+            "    pop rax\n"
+            "    pop rbx\n"
+            "    cmp rbx, rax\n"
+            "    mov rax, 0\n"
+            "    mov rbx, 1\n"
+            "    cmovl rax, rbx\n"
+            "    push rax\n"
+        )
 
     def gte(self):
-        return
-        a = self.pop()
-        b = self.pop()
-        if b >= a:
-            self.push(1)
-        else:
-            self.push(0)
+        return (
+            "    ;; --- gte --- ;;\n"
+            "    pop rax\n"
+            "    pop rbx\n"
+            "    cmp rbx, rax\n"
+            "    mov rax, 0\n"
+            "    mov rbx, 1\n"
+            "    cmovge rax, rbx\n"
+            "    push rax\n"
+        )
 
     def lte(self):
-        return
-        a = self.pop()
-        b = self.pop()
-        if b <= a:
-            self.push(1)
-        else:
-            self.push(0)
+        return (
+            "    ;; --- lte --- ;;\n"
+            "    pop rax\n"
+            "    pop rbx\n"
+            "    cmp rbx, rax\n"
+            "    mov rax, 0\n"
+            "    mov rbx, 1\n"
+            "    cmovle rax, rbx\n"
+            "    push rax\n"
+        )
 
     def while_(self):
-        return
-        a = self.pop()
-        if not a:
-            self.ip = self.current_token.value
+        return (
+            f"    ;; --- while --- ;;\n"
+            f"label_{self.current_token.position}:\n"
+            f"    pop rax\n"
+            f"    cmp rax, 0\n"
+            f"    je label_{self.current_token.value}\n"
+        )
 
     def if_(self):
         return
@@ -164,19 +179,22 @@ class Compiler:
             self.ip = self.current_token.value
 
     def else_(self):
-        return
-        self.ip = self.current_token.value
+        return (
+            f"    ;; --- else --- ;;\n"
+            f"    jmp label_{self.current_token.value}\n"
+        )
 
     def end(self):
-        return
-        if not self.current_token.value:
-            return
-        self.ip = self.current_token.value - 1
+        assembly = f"    ;; --- end --- ;;\n"
+        if self.current_token.value:
+            assembly += f"    jmp label_{self.current_token.value}\n"
+        assembly += f"label_{self.current_token.position}:\n"
+        return assembly
 
     def int_(self):
         return (
-            f";; --- {self.current_token.value} --- ;;\n"
-            f"push {self.current_token.value}\n"
+            f"    ;; --- {self.current_token.value} --- ;;\n"
+            f"    push {self.current_token.value}\n"
         )
 
     def compile(self, tokens: list[Token], output_filename: str) -> None:
