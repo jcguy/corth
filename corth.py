@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 import argparse
+from compiler import Compiler
 
 from language import parse_blocks
 from simulator import Simulator
@@ -7,11 +9,21 @@ from simulator import Simulator
 def main():
     parser = argparse.ArgumentParser(description="Corth compiler")
     parser.add_argument("filename", type=str)
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--simulate", action="store_true")
+    parser.add_argument("--compile", action="store_true")
     args = parser.parse_args()
 
-    tokens = list(parse_blocks(args.filename))
-    simulator = Simulator()
-    simulator.simulate(tokens)
+    filename = args.filename
+    tokens = list(parse_blocks(filename))
+
+    if args.simulate:
+        simulator = Simulator(debug=args.debug)
+        simulator.simulate(tokens)
+    
+    if args.compile:
+        compiler = Compiler(debug=args.debug)
+        compiler.compile(tokens, filename.rsplit(".", 1)[0] + ".asm")
 
 
 if __name__ == "__main__":

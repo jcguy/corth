@@ -1,0 +1,4 @@
+1 if 2 else 3 end .
+1 if 4 . end 
+0 if 5 else 6 end .
+0 if 7 . end

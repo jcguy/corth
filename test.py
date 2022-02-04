@@ -1,5 +1,5 @@
+#!/usr/bin/env python
 import argparse
-from re import I
 import subprocess
 from subprocess import PIPE
 from os import listdir
@@ -58,7 +58,7 @@ def compare_results(filename: str, stdout: bytes, record: bool):
     print()
 
 
-def run_tests(args):
+def run_simulation_tests(args):
     filenames: list[str] = args.filenames
     if "all" in filenames:
         filenames = [
@@ -69,8 +69,47 @@ def run_tests(args):
 
     for filename in filenames:
         process: CompletedProcess = subprocess.run(
-            f"/usr/bin/python corth.py {join(TEST_DIR, filename)}".split(),
+            f"/usr/bin/python corth.py {join(TEST_DIR, filename)} --simulate {'' if args.debug else ''}".split(),
             stdout=PIPE,
+        )
+
+        compare_results(filename, process.stdout, args.record)
+
+    if failed:
+        print(FAILURE, end="")
+    print(
+        f"{len(filenames)} total, {len(filenames) - len(failed)} succeeded, {len(failed)} failed",
+        end="",
+    )
+    print(END)
+
+    if failed:
+        exit(1)
+
+
+def run_compilation_tests(args):
+    filenames: list[str] = args.filenames
+    if "all" in filenames:
+        filenames = [
+            f
+            for f in listdir(TEST_DIR)
+            if isfile(join(TEST_DIR, f)) and f.endswith(".corth")
+        ]
+
+    for filename in filenames:
+        subprocess.check_call(
+            f"/usr/bin/python corth.py {join(TEST_DIR, filename)} --compile".split(),
+        )
+        subprocess.check_call(
+            f"nasm -felf64 {join(TEST_DIR, filename.rsplit('.', 1)[0] + '.asm')}".split(),
+        )
+        subprocess.check_call(
+            f"ld {join(TEST_DIR, filename.rsplit('.', 1)[0] + '.o')} -o {join(TEST_DIR, filename.rsplit('.', 1)[0])}".split(),
+        )
+
+        process: CompletedProcess = subprocess.run(
+            f"{join(TEST_DIR, filename.rsplit('.', 1)[0])}".split(),
+            stdout=PIPE
         )
 
         compare_results(filename, process.stdout, args.record)
@@ -91,10 +130,16 @@ def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    parser_run = subparsers.add_parser("run")
+    parser_run = subparsers.add_parser("simulate")
     parser_run.add_argument("filenames", type=str, nargs="+")
     parser_run.add_argument("--record", action="store_true")
-    parser_run.set_defaults(func=run_tests)
+    parser_run.add_argument("--debug", action="store_true")
+    parser_run.set_defaults(func=run_simulation_tests)
+
+    parser_compile = subparsers.add_parser("compile")
+    parser_compile.add_argument("filenames", type=str, nargs="+")
+    parser_compile.add_argument("--record", action="store_true")
+    parser_compile.set_defaults(func=run_compilation_tests)
 
     args = parser.parse_args()
     args.func(args)

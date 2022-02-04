@@ -1,0 +1,6 @@
+1 1
+1 while
+    swap over +
+    over .
+    dup 100 <
+end
