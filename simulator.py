@@ -40,6 +40,10 @@ class Simulator:
         self.push(a)
         self.push(a)
 
+    def put(self):
+        a = self.pop()
+        print(chr(a), end="")
+
     def swap(self):
         a = self.pop()
         b = self.pop()
@@ -107,12 +111,13 @@ class Simulator:
         self.push(self.current_token.value)
 
     def simulate(self, tokens: list[Token]) -> None:
-        assert TokenType.COUNT_OPS == 15, "Remember to update simulation implementation"
+        assert TokenType.COUNT_OPS == 16, "Remember to update simulation implementation"
         implementations: dict[TokenType, function] = {
             TokenType.OP_DUMP: self.dump,
             TokenType.OP_ADD: self.add,
             TokenType.OP_SUB: self.sub,
             TokenType.OP_DUP: self.dup,
+            TokenType.OP_PUT: self.put,
             TokenType.OP_SWAP: self.swap,
             TokenType.OP_OVER: self.over,
             TokenType.OP_GT: self.gt,

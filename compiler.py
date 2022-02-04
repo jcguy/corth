@@ -81,7 +81,7 @@ class Compiler:
 
     def sub(self):
         return (
-            "    ;; --- add --- ;;\n"
+            "    ;; --- sub --- ;;\n"
             "    pop rax\n"
             "    pop rbx\n"
             "    sub rbx, rax\n"
@@ -94,6 +94,21 @@ class Compiler:
             "    pop rax\n"
             "    push rax\n"
             "    push rax\n"
+        )
+
+    def put(self):
+        return (
+            "    ;; --- put --- ;;\n"
+            "    pop rax\n"
+            "    sub rsp, 8\n"
+            "    mov BYTE [rsp], al\n"
+            "    xor rax, rax\n"
+            "    mov rdx, 1\n" # count
+            "    mov rsi, rsp\n" # buf
+            "    mov rdi, 1\n" # stdout fd 1
+            "    mov rax, 1\n" # syscall write
+            "    syscall\n"
+            "    add rsp, 8\n"
         )
 
     def swap(self):
@@ -169,19 +184,22 @@ class Compiler:
             f"label_{self.current_token.position}:\n"
             f"    pop rax\n"
             f"    cmp rax, 0\n"
-            f"    je label_{self.current_token.value}\n"
+            f"    jz label_{self.current_token.value}\n"
         )
 
     def if_(self):
-        return
-        a = self.pop()
-        if not a:
-            self.ip = self.current_token.value
+        return (
+            f"    ;; --- if --- ;;\n"
+            f"    pop rax\n"
+            f"    cmp rax, 0\n"
+            f"    jz label_{self.current_token.value}\n"
+        )
 
     def else_(self):
         return (
             f"    ;; --- else --- ;;\n"
             f"    jmp label_{self.current_token.value}\n"
+            f"label_{self.current_token.position}:\n"
         )
 
     def end(self):
@@ -198,12 +216,13 @@ class Compiler:
         )
 
     def compile(self, tokens: list[Token], output_filename: str) -> None:
-        assert TokenType.COUNT_OPS == 15, "Remember to update simulation implementation"
+        assert TokenType.COUNT_OPS == 16, "Remember to update compilcation implementation"
         generate: dict[TokenType, function] = {
             TokenType.OP_DUMP: self.dump,
             TokenType.OP_ADD: self.add,
             TokenType.OP_SUB: self.sub,
             TokenType.OP_DUP: self.dup,
+            TokenType.OP_PUT: self.put,
             TokenType.OP_SWAP: self.swap,
             TokenType.OP_OVER: self.over,
             TokenType.OP_GT: self.gt,

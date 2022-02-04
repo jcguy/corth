@@ -21,6 +21,7 @@ class TokenType(IntEnum):
     OP_ADD = op()
     OP_SUB = op()
     OP_DUP = op()
+    OP_PUT = op()
     OP_SWAP = op()
     OP_OVER = op()
     OP_GT = op()
@@ -46,6 +47,7 @@ class Token:
         "+": TokenType.OP_ADD,
         "-": TokenType.OP_SUB,
         "dup": TokenType.OP_DUP,
+        "put": TokenType.OP_PUT,
         "swap": TokenType.OP_SWAP,
         "over": TokenType.OP_OVER,
         ">": TokenType.OP_GT,
@@ -68,19 +70,19 @@ class Token:
         self.value = None
         self.position = None
 
-        assert TokenType.COUNT_OPS == 15, "Remember to update Token.ops"
+        assert TokenType.COUNT_OPS == 16, "Remember to update Token.ops"
         if word in Token.ops:
             self.type = Token.ops[word]
             self.value = None
             return
 
-        assert TokenType.COUNT_OPS == 15, "Remember to update Token.blocks"
+        assert TokenType.COUNT_OPS == 16, "Remember to update Token.blocks"
         if word in Token.blocks:
             self.type = Token.blocks[word]
             self.value = None
             return
 
-        assert TokenType.COUNT_OPS == 15, "Remember to update Token values"
+        assert TokenType.COUNT_OPS == 16, "Remember to update Token values"
         try:
             self.value = int(word)
             self.type = TokenType.VALUE_INT
@@ -133,7 +135,7 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
 
     blocks: list[Block] = []
 
-    assert TokenType.COUNT_OPS == 15, "Remember to update block parsing"
+    assert TokenType.COUNT_OPS == 16, "Remember to update block parsing"
     for i, token in enumerate(tokenize_file(filename)):
         match token.type:
             case TokenType.BLOCK_WHILE:
@@ -164,7 +166,7 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
                 open.token.value = i
                 token.position = i
 
-                if open.token.type is not TokenType.BLOCK_IF:
+                if open.token.type is not TokenType.BLOCK_IF and open.token.type is not TokenType.BLOCK_ELSE:
                     token.value = open.location
             case _:
                 pass
