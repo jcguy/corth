@@ -8,6 +8,8 @@ functional, functions as values -- how does this work with postfix?
         1 3 add dump ==> 4
         3 2 1 cons cons &add map dump ==> 6
     some other way to distinguish between name and invoke?
+
+    forth uses `' function` to mark that the next word should be read as an address
     
 blocks delimited with block name and "end"
 compiled? interpreted + compiled like porth?

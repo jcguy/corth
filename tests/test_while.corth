@@ -1,0 +1,5 @@
+10 dup while
+    dup .
+    1 -
+    dup
+end
