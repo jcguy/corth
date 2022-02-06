@@ -216,7 +216,7 @@ class Compiler:
         )
 
     def compile(self, tokens: list[Token], output_filename: str) -> None:
-        assert TokenType.COUNT_OPS == 16, "Remember to update compilcation implementation"
+        assert TokenType.COUNT_OPS == 16, "Remember to update compilation implementation"
         generate: dict[TokenType, function] = {
             TokenType.OP_DUMP: self.dump,
             TokenType.OP_ADD: self.add,
