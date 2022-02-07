@@ -5,12 +5,13 @@ import           Data.Map (Map, withoutKeys)
 import           Text.Read (readMaybe)
 import           Debug.Trace (trace)
 import           Control.Applicative (Alternative(empty, (<|>)))
-import           Data.Char (isDigit)
+import           Data.Char (isDigit, isAlphaNum, isSpace, isSymbol)
+import           GHC.Integer (integerToInt)
 
 debug :: c -> String -> c
 debug = flip trace
 
-data Token =
+data TokenType =
     OP_DUMP
   | OP_ADD
   | OP_SUB
@@ -27,7 +28,24 @@ data Token =
   | VAL_INT Integer
   deriving (Show, Eq)
 
-newtype Parser a = Parser { runParser :: String -> Maybe (String, a) }
+data Loc = Loc { file :: String, row :: Integer, col :: Integer }
+
+instance Show Loc where
+  show (Loc file row col) = file <> ":" <> show row <> ":" <> show col
+
+data Token = Token { type' :: TokenType, loc :: Loc }
+
+instance Show Token where
+  show (Token type' loc) = "\n" <> show loc <> "\t" <> show type'
+
+data CorthWord = CorthWord { str :: String, wordLoc :: Loc }
+  deriving (Show)
+
+wordToToken :: TokenType -> CorthWord -> Token
+wordToToken t w = Token t $ wordLoc w
+
+newtype Parser a =
+  Parser { runParser :: [CorthWord] -> Maybe ([CorthWord], a) }
 
 instance Functor Parser where
   -- fmap :: (a -> b) -> Parser a -> Parser b
@@ -53,28 +71,14 @@ instance Alternative Parser where
   -- (<|>) :: Parser a -> Parser a -> Parser a
   (<|>) (Parser p1) (Parser p2) = Parser $ \input -> p1 input <|> p2 input
 
-charP :: Char -> Parser Char
-charP c = Parser f
+stringP :: String -> Parser CorthWord
+stringP s = Parser f
   where
     f [] = Nothing
-    f (y:ys)
-      | y == c = Just (ys, c)
+    f (cw:cws)
+      | s == str cw = Just (cws, cw)
       | otherwise = Nothing
 
-stringP :: String -> Parser String
-stringP = traverse charP
-
-spanP :: (Char -> Bool) -> Parser String
-spanP f = Parser
-  $ \input -> let (token, rest) = span f input
-              in Just (rest, token)
-
-intP :: Parser Token
-intP = f <$> notEmpty (spanP isDigit)
-  where
-    f ds = VAL_INT $ read ds
-
-  -- where f ds = VAL_INT $ readMaybe ds
 notEmpty :: Parser [a] -> Parser [a]
 notEmpty (Parser p) = Parser
   $ \input -> do
@@ -83,8 +87,11 @@ notEmpty (Parser p) = Parser
       then Nothing
       else Just (input', xs)
 
-keywordParser :: (Token, String) -> Parser Token
-keywordParser (t, s) = t <$ stringP s
+keywordParser :: (TokenType, String) -> Parser Token
+keywordParser (t, s) = Parser
+  $ \input -> do
+    (input', x) <- runParser (stringP s) input
+    Just (input', wordToToken t x)
 
 keywordParsers :: [Parser Token]
 keywordParsers = map
@@ -103,19 +110,41 @@ keywordParsers = map
   , (BLOCK_ELSE, "else")
   , (BLOCK_END, "end")]
 
-token :: Parser Token
-token = foldl1 (<|>) keywordParsers <|> intP
+intParser :: Parser Token
+intParser = Parser
+  $ \(x:xs) -> let result = readMaybe $ str x :: Maybe Integer
+               in case result of
+                    Just n -> Just (xs, wordToToken (VAL_INT n) x)
+                    _      -> Nothing
+                      `debug` ("Couldn't read \"" <> str x <> "\" as Integer")
 
-parse :: String -> Maybe [Token]
-parse s = traverse (f . runParser token) (words s)
+token :: Parser Token
+token = foldl1 (<|>) keywordParsers <|> intParser
+
+parse :: [CorthWord] -> Maybe [Token]
+parse input = sequenceA $ parse' input
   where
-    f :: Maybe (String, Token) -> Maybe Token
-    f m = snd <$> m
+    parse' :: [CorthWord] -> [Maybe Token]
+    parse' [] = []
+    parse' (x:xs) = (snd <$> runParser token [x]):parse' xs
+
+lexFile :: String -> String -> [CorthWord]
+lexFile filename = lex' filename 1 1
+  where
+    lex' :: String -> Integer -> Integer -> String -> [CorthWord]
+    lex' _ row col [] = []
+    lex' file row col xs
+      | '\n' == head xs = lex' file (1 + row) 1 (tail xs)
+      | isSpace $ head xs = lex' file row (1 + col) (tail xs)
+      | otherwise = let word = takeWhile (not . isSpace) xs
+                        n = length word
+                    in CorthWord word (Loc file row col)
+                       :lex' file row (col + toInteger n) (drop n xs)
+
+parseFile :: FilePath -> IO (Maybe [Token])
+parseFile filename = do
+  input <- readFile filename
+  return $ parse $ lexFile filename input
 
 main :: IO ()
-main = print
-  $ parse "\
-  \3 4 + .\n\
-  \12 -1 + .\n\
-  \8 4 - .\n\
-  \4 2 - .\n"
+main = undefined
