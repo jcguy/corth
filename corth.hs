@@ -1,9 +1,16 @@
+{- HLINT ignore "Use lambda-case" -}
 module Main where
 
-import           Data.Map (Map)
+import           Data.Map (Map, withoutKeys)
 import           Text.Read (readMaybe)
+import           Debug.Trace (trace)
+import           Control.Applicative (Alternative(empty, (<|>)))
+import           Data.Char (isDigit)
 
-data TokenType =
+debug :: c -> String -> c
+debug = flip trace
+
+data Token =
     OP_DUMP
   | OP_ADD
   | OP_SUB
@@ -13,85 +20,102 @@ data TokenType =
   | OP_OVER
   | OP_GT
   | OP_LT
-  | OP_EQ
   | BLOCK_WHILE
   | BLOCK_IF
   | BLOCK_ELSE
   | BLOCK_END
-  | VALUE_INT Integer
+  | VAL_INT Integer
   deriving (Show, Eq)
 
-data Location = Location { filename :: String, row :: Integer, col :: Integer }
-  deriving (Eq)
+newtype Parser a = Parser { runParser :: String -> Maybe (String, a) }
 
-instance Show Location where
-  show (Location file row col) =
-    show file ++ ":" ++ show row ++ ":" ++ show col
+instance Functor Parser where
+  -- fmap :: (a -> b) -> Parser a -> Parser b
+  fmap f (Parser p) = Parser
+    $ \input -> do
+      (input', x) <- p input
+      Just (input', f x)
 
-data Token = Token { tokenType :: TokenType, tokenLoc :: Location }
-  deriving (Eq)
+instance Applicative Parser where
+  pure x = Parser $ \input -> Just (input, x)
 
-instance Show Token where
-  show (Token type' loc) = show loc ++ " " ++ show type'
+  -- (<*>) :: Parser (a -> b) -> Parser a -> Parser b
+  (<*>) (Parser p1) (Parser p2) = Parser
+    $ \input -> do
+      (input', f) <- p1 input
+      (input'', x) <- p2 input'
+      Just (input'', f x)
 
-data Input = Input { inputLoc :: Location, inputStr :: String }
-  deriving (Eq, Show)
+instance Alternative Parser where
+  -- empty :: Parser a
+  empty = Parser $ const Nothing
 
-inputPop :: Input -> Maybe (Char, Input)
-inputPop (Input _ []) = Nothing
-inputPop
-  (Input loc (x:xs)) = Just (x, Input { inputLoc = newLoc, inputStr = xs })
-  where
-    newLoc = case x of
-      '\n' -> loc { row = row loc + 1, col = 0 }
-      _    -> loc { col = col loc + 1 }
-
-data ParserError = ParserError Location String
-  deriving (Show)
-
-newtype Parser a =
-  Parser { runParser :: Input -> Either ParserError (Input, a) }
+  -- (<|>) :: Parser a -> Parser a -> Parser a
+  (<|>) (Parser p1) (Parser p2) = Parser $ \input -> p1 input <|> p2 input
 
 charP :: Char -> Parser Char
-charP x = Parser $ g . f
+charP c = Parser f
   where
-      f :: Input -> (Location, Maybe (Char, Input))
-      f (Input loc str) = (loc, inputPop $ Input loc str)
-      g :: (Location, Maybe (Char, Input)) -> Either ParserError (Input, Char)
-      g (loc, result) = case result of
-          Just (y, ys) -> z where
-              z
-                | x == y = Right (ys, y)
-                | otherwise = Left $ ParserError loc ("Expected '" ++ [x] ++ "' but got '" ++ [y] ++ "'")
-          Nothing -> Left $ ParserError loc ("Expected '" ++ [x] ++ "' but reached end of string")
+    f [] = Nothing
+    f (y:ys)
+      | y == c = Just (ys, c)
+      | otherwise = Nothing
 
 stringP :: String -> Parser String
-stringP = undefined
+stringP = traverse charP
 
-parse :: String -> [Token]
-parse ss = map parse' $ words ss
+spanP :: (Char -> Bool) -> Parser String
+spanP f = Parser
+  $ \input -> let (token, rest) = span f input
+              in Just (rest, token)
 
-parse' :: String -> Token
-parse' word =
-  Token { tokenType = case word of
-            "."    -> OP_DUMP
-            "+"    -> OP_ADD
-            "-"    -> OP_SUB
-            "dup"  -> OP_PUT
-            "put"  -> OP_PUT
-            "swap" -> OP_SWAP
-            "over" -> OP_OVER
-            ">"    -> OP_GT
-            "<"    -> OP_LT
-            _      -> case readMaybe word of
-              Just n  -> VALUE_INT n
-              Nothing -> error $ "unknown word " ++ word
-        , tokenLoc = Location "here.corth" 0 0
-        }
+intP :: Parser Token
+intP = f <$> notEmpty (spanP isDigit)
+  where
+    f ds = VAL_INT $ read ds
+
+  -- where f ds = VAL_INT $ readMaybe ds
+notEmpty :: Parser [a] -> Parser [a]
+notEmpty (Parser p) = Parser
+  $ \input -> do
+    (input', xs) <- p input
+    if null xs
+      then Nothing
+      else Just (input', xs)
+
+keywordParser :: (Token, String) -> Parser Token
+keywordParser (t, s) = t <$ stringP s
+
+keywordParsers :: [Parser Token]
+keywordParsers = map
+  keywordParser
+  [ (OP_DUMP, ".")
+  , (OP_ADD, "+")
+  , (OP_SUB, "-")
+  , (OP_DUP, "dup")
+  , (OP_PUT, "put")
+  , (OP_SWAP, "swap")
+  , (OP_OVER, "over")
+  , (OP_GT, ">")
+  , (OP_LT, "<")
+  , (BLOCK_WHILE, "while")
+  , (BLOCK_IF, "if")
+  , (BLOCK_ELSE, "else")
+  , (BLOCK_END, "end")]
+
+token :: Parser Token
+token = foldl1 (<|>) keywordParsers <|> intP
+
+parse :: String -> Maybe [Token]
+parse s = traverse (f . runParser token) (words s)
+  where
+    f :: Maybe (String, Token) -> Maybe Token
+    f m = snd <$> m
 
 main :: IO ()
-main = do
-  print $ parse "3 4 + .\n\
-   \12 -1 + .\n\
-   \8 4 - .\n\
-   \4 2 - .\n"
+main = print
+  $ parse "\
+  \3 4 + .\n\
+  \12 -1 + .\n\
+  \8 4 - .\n\
+  \4 2 - .\n"
