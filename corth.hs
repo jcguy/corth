@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 {- HLINT ignore "Use lambda-case" -}
 module Main where
 
@@ -33,6 +35,16 @@ data Loc = Loc { file :: String, row :: Integer, col :: Integer }
 instance Show Loc where
   show (Loc file row col) = file <> ":" <> show row <> ":" <> show col
 
+instance Eq Loc where
+  (==) (Loc f1 r1 c1) (Loc f2 r2 c2) = f1 == f2 && r1 == r2 && c1 == c2
+
+instance Ord Loc where
+  compare (Loc f1 r1 c1) (Loc f2 r2 c2)
+    | f1 /= f2 = compare f1 f2
+    | r1 /= r2 = compare r1 r2
+    | c1 /= c2 = compare c1 c2
+    | otherwise = EQ
+
 data Token = Token { type' :: TokenType, loc :: Loc }
 
 instance Show Token where
@@ -44,29 +56,46 @@ data CorthWord = CorthWord { str :: String, wordLoc :: Loc }
 wordToToken :: TokenType -> CorthWord -> Token
 wordToToken t w = Token t $ wordLoc w
 
+data ParserError = UnknownError
+                 | KnownError { errLoc :: Loc, errStr :: String }
+
+instance Show ParserError where
+  show UnknownError = "Unknown error encountered"
+  show (KnownError l s) = show l ++ " " ++ s
+
 newtype Parser a =
-  Parser { runParser :: [CorthWord] -> Maybe ([CorthWord], a) }
+  Parser { runParser :: [CorthWord] -> Either ParserError ([CorthWord], a) }
 
 instance Functor Parser where
   -- fmap :: (a -> b) -> Parser a -> Parser b
   fmap f (Parser p) = Parser
     $ \input -> do
       (input', x) <- p input
-      Just (input', f x)
+      Right (input', f x)
 
 instance Applicative Parser where
-  pure x = Parser $ \input -> Just (input, x)
+  pure x = Parser $ \input -> Right (input, x)
 
   -- (<*>) :: Parser (a -> b) -> Parser a -> Parser b
   (<*>) (Parser p1) (Parser p2) = Parser
     $ \input -> do
       (input', f) <- p1 input
       (input'', x) <- p2 input'
-      Just (input'', f x)
+      Right (input'', f x)
+
+instance Alternative (Either ParserError) where
+  empty = Left UnknownError
+
+  (<|>) (Left UnknownError) e2 = e2
+  (<|>) e1@(Left (KnownError loc1 _)) e2@(Left (KnownError loc2 _))
+    | loc2 > loc1 = e2
+    | otherwise = e1
+  (<|>) (Left _) (Right x) = Right x
+  (<|>) e1 _ = e1
 
 instance Alternative Parser where
   -- empty :: Parser a
-  empty = Parser $ const Nothing
+  empty = Parser $ const $ Left UnknownError
 
   -- (<|>) :: Parser a -> Parser a -> Parser a
   (<|>) (Parser p1) (Parser p2) = Parser $ \input -> p1 input <|> p2 input
@@ -74,24 +103,19 @@ instance Alternative Parser where
 stringP :: String -> Parser CorthWord
 stringP s = Parser f
   where
-    f [] = Nothing
+    f [] = Left UnknownError
     f (cw:cws)
-      | s == str cw = Just (cws, cw)
-      | otherwise = Nothing
-
-notEmpty :: Parser [a] -> Parser [a]
-notEmpty (Parser p) = Parser
-  $ \input -> do
-    (input', xs) <- p input
-    if null xs
-      then Nothing
-      else Just (input', xs)
+      | s == str cw = Right (cws, cw)
+      | otherwise = Left
+        $ KnownError
+          (wordLoc cw)
+          ("Unknown word \"" ++ str cw ++ "\"")
 
 keywordParser :: (TokenType, String) -> Parser Token
 keywordParser (t, s) = Parser
   $ \input -> do
     (input', x) <- runParser (stringP s) input
-    Just (input', wordToToken t x)
+    Right (input', wordToToken t x)
 
 keywordParsers :: [Parser Token]
 keywordParsers = map
@@ -112,21 +136,25 @@ keywordParsers = map
 
 intParser :: Parser Token
 intParser = Parser
-  $ \(x:xs) -> let result = readMaybe $ str x :: Maybe Integer
-               in case result of
-                    Just n -> Just (xs, wordToToken (VAL_INT n) x)
-                    _      -> Nothing
-                      `debug` ("Couldn't read \"" <> str x <> "\" as Integer")
+  $ \(x:xs)
+  -> let result = readMaybe $ str x :: Maybe Integer
+     in case result of
+          Just n -> Right (xs, wordToToken (VAL_INT n) x)
+          _      -> Left
+            $ KnownError (wordLoc x) ("Unknown word \"" <> str x <> "\"")
 
 token :: Parser Token
 token = foldl1 (<|>) keywordParsers <|> intParser
 
-parse :: [CorthWord] -> Maybe [Token]
+parse :: [CorthWord] -> Either ParserError [Token]
 parse input = sequenceA $ parse' input
   where
-    parse' :: [CorthWord] -> [Maybe Token]
+    parse' :: [CorthWord] -> [Either ParserError Token]
     parse' [] = []
-    parse' (x:xs) = (snd <$> runParser token [x]):parse' xs
+    parse' (x:xs) = let result = (snd <$> runParser token [x])
+                    in case result of
+                         Right r -> Right r:parse' xs
+                         Left e -> [Left e]
 
 lexFile :: String -> String -> [CorthWord]
 lexFile filename = lex' filename 1 1
@@ -141,10 +169,13 @@ lexFile filename = lex' filename 1 1
                     in CorthWord word (Loc file row col)
                        :lex' file row (col + toInteger n) (drop n xs)
 
-parseFile :: FilePath -> IO (Maybe [Token])
+parseFile :: FilePath -> IO ()
 parseFile filename = do
   input <- readFile filename
-  return $ parse $ lexFile filename input
+  let result = parse $ lexFile filename input in
+    case result of
+      Left e -> print e
+      Right x -> print x
 
 main :: IO ()
 main = undefined
