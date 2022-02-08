@@ -1,5 +1,5 @@
 from sys import stderr
-from language import Token, TokenType
+from parser import Token, TokenType
 
 
 class Compiler:
@@ -179,9 +179,22 @@ class Compiler:
         )
 
     def while_(self):
+        pass
+
+    def do(self):
+        a = self.pop()
+        if not a:
+            self.ip = self.current_token.value
+
+    def while_(self):
         return (
             f"    ;; --- while --- ;;\n"
             f"label_{self.current_token.position}:\n"
+        )
+
+    def do(self):
+        return (
+            f"    ;; --- do --- ;;\n"
             f"    pop rax\n"
             f"    cmp rax, 0\n"
             f"    jz label_{self.current_token.value}\n"
@@ -216,7 +229,7 @@ class Compiler:
         )
 
     def compile(self, tokens: list[Token], output_filename: str) -> None:
-        assert TokenType.COUNT_OPS == 16, "Remember to update compilation implementation"
+        assert len(TokenType) == 17, "Remember to update compilation implementation"
         generate: dict[TokenType, function] = {
             TokenType.OP_DUMP: self.dump,
             TokenType.OP_ADD: self.add,
@@ -230,6 +243,7 @@ class Compiler:
             TokenType.OP_GTE: self.gte,
             TokenType.OP_LTE: self.lte,
             TokenType.BLOCK_WHILE: self.while_,
+            TokenType.BLOCK_DO: self.do,
             TokenType.BLOCK_IF: self.if_,
             TokenType.BLOCK_ELSE: self.else_,
             TokenType.BLOCK_END: self.end,

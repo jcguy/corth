@@ -1,11 +1,10 @@
-10 dup while
+10 while dup do
     dup .
     1 -
     dup
 end
 
-1 1 while
+1 while dup 10 <= do
     dup .
     1 +
-    dup 10 <=
 end

@@ -1,40 +1,31 @@
 from typing import Generator
-from enum import IntEnum, unique
+from enum import IntEnum, auto, unique
 
 
 op_count = 0
 
 
-def op(reset=False) -> int:
-    global op_count
-    if reset:
-        op_count = 0
-
-    op_count += 1
-    return op_count - 1
-
-
 @unique
 class TokenType(IntEnum):
-    OP_DUMP = op(True)
-    OP_ADD = op()
-    OP_SUB = op()
-    OP_DUP = op()
-    OP_PUT = op()
-    OP_SWAP = op()
-    OP_OVER = op()
-    OP_GT = op()
-    OP_LT = op()
-    OP_GTE = op()
-    OP_LTE = op()
+    OP_DUMP = auto()
+    OP_ADD = auto()
+    OP_SUB = auto()
+    OP_DUP = auto()
+    OP_PUT = auto()
+    OP_SWAP = auto()
+    OP_OVER = auto()
+    OP_GT = auto()
+    OP_LT = auto()
+    OP_GTE = auto()
+    OP_LTE = auto()
 
-    BLOCK_WHILE = op()
-    BLOCK_IF = op()
-    BLOCK_ELSE = op()
-    BLOCK_END = op()
+    BLOCK_WHILE = auto()
+    BLOCK_DO = auto()
+    BLOCK_IF = auto()
+    BLOCK_ELSE = auto()
+    BLOCK_END = auto()
 
-    VALUE_INT = op()
-    COUNT_OPS = op()
+    VALUE_INT = auto()
 
     def __repr__(self) -> str:
         return f"{self.name}"
@@ -57,6 +48,7 @@ class Token:
 
     blocks = {
         "while": TokenType.BLOCK_WHILE,
+        "do": TokenType.BLOCK_DO,
         "if": TokenType.BLOCK_IF,
         "else": TokenType.BLOCK_ELSE,
         "end": TokenType.BLOCK_END,
@@ -65,23 +57,23 @@ class Token:
     def __init__(self, word: str, filename: str, row: int, col: int):
         self.filename = filename
         self.row = row + 1
-        self.col = col + 1
+        self.col = col
         self.value = None
         self.position = None
 
-        assert TokenType.COUNT_OPS == 16, "Remember to update Token.ops"
+        assert len(TokenType) == 17, "Remember to update Token.ops"
         if word in Token.ops:
             self.type = Token.ops[word]
             self.value = None
             return
 
-        assert TokenType.COUNT_OPS == 16, "Remember to update Token.blocks"
+        assert len(TokenType) == 17, "Remember to update Token.blocks"
         if word in Token.blocks:
             self.type = Token.blocks[word]
             self.value = None
             return
 
-        assert TokenType.COUNT_OPS == 16, "Remember to update Token values"
+        assert len(TokenType) == 17, "Remember to update Token values"
         try:
             self.value = int(word)
             self.type = TokenType.VALUE_INT
@@ -89,7 +81,7 @@ class Token:
             raise e
 
     def __repr__(self) -> str:
-        return f"{self.filename}:{self.row}:{self.col}:Token({self.type.name},{self.value})"
+        return f"{self.filename}:{self.row}:{self.col}: Token({self.type.name},{self.value})"
 
 
 def parse_line(line: str) -> Generator[tuple[int, str], None, None]:
@@ -112,7 +104,7 @@ def parse_line(line: str) -> Generator[tuple[int, str], None, None]:
         word += c
 
     if start:
-        yield (col + 1, word.strip())
+        yield (col, word.strip())
 
 
 def tokenize_file(filename: str) -> Generator[Token, None, None]:
@@ -120,7 +112,7 @@ def tokenize_file(filename: str) -> Generator[Token, None, None]:
         lines: list[str] = f.readlines()
 
     yield from (
-        Token(word, filename, row, col)
+        Token(word, filename, row + 1, col + 1)
         for (row, line) in enumerate(lines)
         for (col, word) in parse_line(line)
     )
@@ -134,11 +126,22 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
 
     blocks: list[Block] = []
 
-    assert TokenType.COUNT_OPS == 16, "Remember to update block parsing"
+    assert len(TokenType) == 17, "Remember to update block parsing"
     for i, token in enumerate(tokenize_file(filename)):
         match token.type:
             case TokenType.BLOCK_WHILE:
                 token.position = i
+                blocks.append(Block(i, token))
+            case TokenType.BLOCK_DO:
+                # close while block
+                open = blocks.pop()
+                assert (
+                    open.token.type is TokenType.BLOCK_WHILE
+                ), f"Can't use {token} without {TokenType.BLOCK_WHILE}; found {open.token}"
+
+                # open do block
+                token.position = i
+                token.value = open.location
                 blocks.append(Block(i, token))
             case TokenType.BLOCK_IF:
                 token.position = i
@@ -156,17 +159,27 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
                 blocks.append(Block(i, token))
             case TokenType.BLOCK_END:
                 open = blocks.pop()
+                assert open.token.type in (
+                    TokenType.BLOCK_DO,
+                    TokenType.BLOCK_IF,
+                    TokenType.BLOCK_ELSE,
+                ), f"Trying to close block {open.token} with invalid {token}"
                 # If this is already set, it's because we're ending an if-else pair of blocks
                 if open.token.value:
-                    assert (
-                        open.token.type is TokenType.BLOCK_ELSE
+                    assert open.token.type in (
+                        TokenType.BLOCK_ELSE,
+                        TokenType.BLOCK_DO,
                     ), f"Someone set {open.token} and it wasn't {token}"
+
+                if open.token.type in (TokenType.BLOCK_ELSE, TokenType.BLOCK_IF):
+                    pass
+                else:
+                    assert open.token.type is TokenType.BLOCK_DO
+                    token.value = open.token.value
 
                 open.token.value = i
                 token.position = i
 
-                if open.token.type is not TokenType.BLOCK_IF and open.token.type is not TokenType.BLOCK_ELSE:
-                    token.value = open.location
             case _:
                 pass
 
@@ -174,3 +187,7 @@ def parse_blocks(filename: str) -> Generator[Token, None, None]:
 
     if blocks:
         raise RuntimeError(f"{blocks.pop().token}: this block wasn't closed")
+
+
+def typecheck(tokens: list[Token]) -> list[Token]:
+    pass

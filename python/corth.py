@@ -2,7 +2,7 @@
 import argparse
 from compiler import Compiler
 
-from language import parse_blocks
+from parser import parse_blocks, typecheck, Token
 from simulator import Simulator
 
 
@@ -15,12 +15,13 @@ def main():
     args = parser.parse_args()
 
     filename = args.filename
-    tokens = list(parse_blocks(filename))
+    tokens: list[Token] = list(parse_blocks(filename))
+    typecheck(tokens)
 
     if args.simulate:
         simulator = Simulator(debug=args.debug)
         simulator.simulate(tokens)
-    
+
     if args.compile:
         compiler = Compiler(debug=args.debug)
         compiler.compile(tokens, filename.rsplit(".", 1)[0] + ".asm")

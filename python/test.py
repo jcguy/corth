@@ -2,12 +2,12 @@
 import argparse
 import subprocess
 from subprocess import PIPE
-from os import listdir
+import os
 from os.path import join, isfile, exists
 from pathlib import Path
 from subprocess import CompletedProcess
 
-TEST_DIR = "./tests"
+TEST_DIR = "../tests"
 CACHE_FILE = join(TEST_DIR, "results.txt")
 FAILURE = "\033[91m"
 END = "\033[0m"
@@ -63,9 +63,12 @@ def run_simulation_tests(args):
     if "all" in filenames:
         filenames = [
             f
-            for f in listdir(TEST_DIR)
+            for f in os.listdir(TEST_DIR)
             if isfile(join(TEST_DIR, f)) and f.endswith(".corth")
         ]
+
+    if args.record:
+        os.remove(CACHE_FILE)
 
     for filename in filenames:
         process: CompletedProcess = subprocess.run(
@@ -92,7 +95,7 @@ def run_compilation_tests(args):
     if "all" in filenames:
         filenames = [
             f
-            for f in listdir(TEST_DIR)
+            for f in os.listdir(TEST_DIR)
             if isfile(join(TEST_DIR, f)) and f.endswith(".corth")
         ]
 

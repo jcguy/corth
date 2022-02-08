@@ -1,17 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 {- HLINT ignore "Use lambda-case" -}
-module Main where
+module Corth where
 
-import           Data.Map (Map, withoutKeys)
 import           Text.Read (readMaybe)
-import           Debug.Trace (trace)
 import           Control.Applicative (Alternative(empty, (<|>)))
-import           Data.Char (isDigit, isAlphaNum, isSpace, isSymbol)
-import           GHC.Integer (integerToInt)
-
-debug :: c -> String -> c
-debug = flip trace
+import           Data.Char (isSpace)
 
 data TokenType =
     OP_DUMP
@@ -107,9 +101,7 @@ stringP s = Parser f
     f (cw:cws)
       | s == str cw = Right (cws, cw)
       | otherwise = Left
-        $ KnownError
-          (wordLoc cw)
-          ("Unknown word \"" ++ str cw ++ "\"")
+        $ KnownError (wordLoc cw) ("Unknown word \"" ++ str cw ++ "\"")
 
 keywordParser :: (TokenType, String) -> Parser Token
 keywordParser (t, s) = Parser
@@ -154,7 +146,7 @@ parse input = sequenceA $ parse' input
     parse' (x:xs) = let result = (snd <$> runParser token [x])
                     in case result of
                          Right r -> Right r:parse' xs
-                         Left e -> [Left e]
+                         Left e  -> [Left e]
 
 lexFile :: String -> String -> [CorthWord]
 lexFile filename = lex' filename 1 1
@@ -169,13 +161,10 @@ lexFile filename = lex' filename 1 1
                     in CorthWord word (Loc file row col)
                        :lex' file row (col + toInteger n) (drop n xs)
 
-parseFile :: FilePath -> IO ()
+parseFile :: FilePath -> IO (Either ParserError [Token])
 parseFile filename = do
   input <- readFile filename
-  let result = parse $ lexFile filename input in
-    case result of
-      Left e -> print e
-      Right x -> print x
+  return $ parse $ lexFile filename input
 
 main :: IO ()
 main = undefined

@@ -1,5 +1,5 @@
 from sys import stderr
-from language import Token, TokenType
+from parser import Token, TokenType
 
 
 class Simulator:
@@ -90,6 +90,9 @@ class Simulator:
             self.push(0)
 
     def while_(self):
+        pass
+
+    def do(self):
         a = self.pop()
         if not a:
             self.ip = self.current_token.value
@@ -111,7 +114,7 @@ class Simulator:
         self.push(self.current_token.value)
 
     def simulate(self, tokens: list[Token]) -> None:
-        assert TokenType.COUNT_OPS == 16, "Remember to update simulation implementation"
+        assert len(TokenType) == 17, "Remember to update simulation implementation"
         implementations: dict[TokenType, function] = {
             TokenType.OP_DUMP: self.dump,
             TokenType.OP_ADD: self.add,
@@ -125,6 +128,7 @@ class Simulator:
             TokenType.OP_GTE: self.gte,
             TokenType.OP_LTE: self.lte,
             TokenType.BLOCK_WHILE: self.while_,
+            TokenType.BLOCK_DO: self.do,
             TokenType.BLOCK_IF: self.if_,
             TokenType.BLOCK_ELSE: self.else_,
             TokenType.BLOCK_END: self.end,
